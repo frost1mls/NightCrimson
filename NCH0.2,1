@@ -166,4 +166,257 @@ UIS.InputChanged:Connect(function(input)
         update(input)
     end
 end)
+-- ============================================
+-- SISTEMA DE FUNÇÕES (LÓGICA DO GITHUB)
+-- ============================================
 
+-- Função: ENCONTRAR JOGADOR (Busca por nome ou DisplayName)
+local function findPlayerByName(name)
+    name = name:lower():gsub("%s+$", "")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Player and (p.Name:lower():find(name) or p.DisplayName:lower():find(name)) then
+            return p
+        end
+    end
+    return nil
+end
+
+-- Função: FLY (Voo Estilo Ryuzen)
+local function toggleFly(speed)
+    local char = Player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local torso = char.HumanoidRootPart
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    if isFlying then
+        isFlying = false
+        if hum then hum.PlatformStand = false end
+        for _, v in pairs(torso:GetChildren()) do
+            if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then v:Destroy() end
+        end
+    else
+        isFlying = true
+        flySpeed = tonumber(speed) or 50
+        if hum then hum.PlatformStand = true end
+        
+        local bg = Instance.new("BodyGyro", torso)
+        bg.P = 9e4
+        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.cframe = torso.CFrame
+        
+        local bv = Instance.new("BodyVelocity", torso)
+        bv.velocity = Vector3.new(0, 0, 0)
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        
+        task.spawn(function()
+            while isFlying and torso.Parent do
+                RunService.RenderStepped:Wait()
+                bv.velocity = Workspace.CurrentCamera.CFrame.LookVector * flySpeed
+                bg.cframe = Workspace.CurrentCamera.CFrame
+            end
+        end)
+    end
+end
+
+-- Função: NOCLIP (Atravessar Paredes)
+local function toggleNoclip()
+    isNoclipping = not isNoclipping
+    if isNoclipping then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if not isNoclipping or not Player.Character then 
+                if noclipConnection then noclipConnection:Disconnect() end
+                return 
+            end
+            for _, part in pairs(Player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end)
+    else
+        if noclipConnection then noclipConnection:Disconnect() end
+    end
+end
+
+-- Função: VIEW (Observar Jogador)
+local function toggleView(target)
+    if target then
+        isViewing = true
+        Workspace.CurrentCamera.CameraSubject = target.Character:FindFirstChild("Humanoid")
+    else
+        isViewing = false
+        Workspace.CurrentCamera.CameraSubject = Player.Character:FindFirstChild("Humanoid")
+    end
+end
+
+-- Função: SPEED e JUMP
+local function setStats(type, val)
+    local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if type == "speed" then hum.WalkSpeed = tonumber(val) or 16
+        elseif type == "jump" then hum.JumpPower = tonumber(val) or 50 end
+    end
+end
+
+-- Função: FLING (Girar para empurrar)
+local function toggleFling()
+    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    isFlinging = not isFlinging
+    if isFlinging then
+        flingGyro = Instance.new("BodyAngularVelocity", hrp)
+        flingGyro.MaxTorque = Vector3.new(0, math.huge, 0)
+        flingGyro.AngularVelocity = Vector3.new(0, 99999, 0)
+        flingGyro.Name = "NC_Fling"
+    else
+        if hrp:FindFirstChild("NC_Fling") then hrp.NC_Fling:Destroy() end
+    end
+end
+
+-- Função: REJOIN e SERVER HOP
+local function serverAction(type)
+    if type == "rj" then
+        TeleportService:Teleport(game.PlaceId, Player)
+    elseif type == "sh" then
+        -- Lógica básica de Server Hop
+        print("Procurando novo servidor...")
+    end
+end
+-- ============================================
+-- 3. PROCESSADOR DE COMANDOS
+-- ============================================
+
+local function executeCommand(input)
+    if not input or input == "" then return end
+    
+    local args = string.split(input:lower(), " ")
+    local cmd = args[1]
+    
+    -- Lógica de decisão de comandos
+    if cmd == "fly" then
+        toggleFly(args[2])
+    elseif cmd == "unfly" then
+        if isFlying then toggleFly() end
+        
+    elseif cmd == "noclip" then
+        toggleNoclip()
+    elseif cmd == "unnoclip" then
+        if isNoclipping then toggleNoclip() end
+        
+    elseif cmd == "speed" then
+        setStats("speed", args[2])
+    elseif cmd == "unspeed" then
+        setStats("speed", 16)
+        
+    elseif cmd == "jump" then
+        setStats("jump", args[2])
+    elseif cmd == "unjump" then
+        setStats("jump", 50)
+        
+    elseif cmd == "view" then
+        local target = findPlayerByName(args[2] or "")
+        if target then toggleView(target) end
+    elseif cmd == "unview" then
+        toggleView(nil)
+        
+    elseif cmd == "fling" then
+        toggleFling()
+    elseif cmd == "unfling" then
+        if isFlinging then toggleFling() end
+        
+    elseif cmd == "goto" then
+        local target = findPlayerByName(args[2] or "")
+        if target and target.Character then
+            local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
+            local targetHrp = target.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and targetHrp then
+                hrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0, 3)
+            end
+        end
+        
+    elseif cmd == "rejoin" or cmd == "rj" then
+        serverAction("rj")
+    elseif cmd == "sh" or cmd == "serverhop" then
+        serverAction("sh")
+    end
+    
+    CommandBox.Text = "" -- Limpa a caixa após executar
+end
+
+-- ============================================
+-- 4. CONTROLE DA INTERFACE (ANIMAÇÕES)
+-- ============================================
+
+local function openCommandBar()
+    CommandFrame.Visible = true
+    MainButton.Text = "🌑" -- Muda o ícone enquanto a aba está aberta
+    
+    -- Animação de Entrada
+    TS:Create(CommandFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 300, 0, 40),
+        Position = UDim2.new(1, -320, 1, -60)
+    }):Play()
+    
+    task.wait(0.1)
+    CommandBox:CaptureFocus()
+end
+
+local function closeCommandBar()
+    -- Animação de Saída
+    local tween = TS:Create(CommandFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 40),
+        Position = UDim2.new(1, -20, 1, -30)
+    })
+    
+    tween:Play()
+    tween.Completed:Connect(function()
+        CommandFrame.Visible = false
+        MainButton.Text = "NC" -- Volta para o texto padrão
+    end)
+end
+
+-- ============================================
+-- 5. EVENTOS DE INTERAÇÃO
+-- ============================================
+
+-- Clique no botão NC
+MainButton.MouseButton1Click:Connect(function()
+    if CommandFrame.Visible then
+        closeCommandBar()
+    else
+        openCommandBar()
+    end
+end)
+
+-- Hover (Passar o mouse) mostra a Tag
+MainButton.MouseEnter:Connect(function()
+    NameTag.Visible = true
+    TS:Create(NameTag, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 165, 0, 30),
+        Position = UDim2.new(1, -170, 0, 20)
+    }):Play()
+end)
+
+MainButton.MouseLeave:Connect(function()
+    TS:Create(NameTag, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 30),
+        Position = UDim2.new(1, -50, 0, 20)
+    }):Play()
+    task.wait(0.2)
+    NameTag.Visible = false
+end)
+
+-- Processar quando apertar Enter
+CommandBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        executeCommand(CommandBox.Text)
+    end
+    
+    -- Auto-fechar se perder o foco e estiver vazio
+    task.wait(0.5)
+    if not CommandBox:IsFocused() and CommandBox.Text == "" then
+        closeCommandBar()
+    end
+end)
+
+-- Inicialização
+print("🌑 NightCrimson Hub v0.1 carregado com sucesso!")
