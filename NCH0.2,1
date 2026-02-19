@@ -1,0 +1,169 @@
+--[[
+    NIGHT CRIMSON HUB v0.1
+    Lógica: Integrada do GitHub
+    Interface: NC Custom
+]]
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local TS = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local TeleportService = game:GetService("TeleportService")
+
+-- ============================================
+-- CONFIGURAÇÕES VISUAIS (NC STYLE)
+-- ============================================
+local MAIN_COLOR = Color3.fromRGB(40, 0, 0)
+local HOVER_COLOR = Color3.fromRGB(60, 0, 0)
+
+-- ============================================
+-- VARIÁVEIS DE ESTADO
+-- ============================================
+local isFlying = false
+local isFlinging = false
+local isNoclipping = false
+local isViewing = false
+local flySpeed = 50
+local targetPlayer = nil
+local originalCameraType = Enum.CameraType.Custom
+local originalCameraSubject = nil
+local noclipConnection = nil
+local flingGyro = nil
+
+-- ============================================
+-- CONSTRUÇÃO DA INTERFACE
+-- ============================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NightCrimsonHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Suporte para diferentes executores
+if gethui then
+    ScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game.CoreGui
+else
+    ScreenGui.Parent = game.CoreGui
+end
+
+-- BOTÃO PRINCIPAL (NC)
+local MainButton = Instance.new("TextButton")
+MainButton.Name = "MainButton"
+MainButton.Size = UDim2.new(0, 35, 0, 35)
+MainButton.Position = UDim2.new(1, -50, 0, 20)
+MainButton.AnchorPoint = Vector2.new(1, 0)
+MainButton.BackgroundColor3 = MAIN_COLOR
+MainButton.Text = "NC"
+MainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MainButton.Font = Enum.Font.SourceSansBold
+MainButton.TextSize = 14
+MainButton.ZIndex = 1000
+MainButton.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = MainButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 0, 0)
+UIStroke.Thickness = 1.5
+UIStroke.Parent = MainButton
+
+-- TAG DE NOME (Fica escondida até o Hover)
+local NameTag = Instance.new("Frame")
+NameTag.Name = "NameTag"
+NameTag.Size = UDim2.new(0, 0, 0, 30)
+NameTag.Position = UDim2.new(1, -50, 0, 20)
+NameTag.AnchorPoint = Vector2.new(1, 0)
+NameTag.BackgroundColor3 = MAIN_COLOR
+NameTag.BackgroundTransparency = 0.3
+NameTag.Visible = false
+NameTag.ZIndex = 999
+NameTag.Parent = ScreenGui
+
+local NameTagCorner = Instance.new("UICorner")
+NameTagCorner.CornerRadius = UDim.new(0, 6)
+NameTagCorner.Parent = NameTag
+
+local NameLabel = Instance.new("TextLabel")
+NameLabel.Size = UDim2.new(1, -10, 1, 0)
+NameLabel.Position = UDim2.new(0, 5, 0, 0)
+NameLabel.BackgroundTransparency = 1
+NameLabel.Text = "🌑 NightCrimson Hub v0.1"
+NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+NameLabel.Font = Enum.Font.SourceSansBold
+NameLabel.TextSize = 12
+NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+NameLabel.Parent = NameTag
+
+-- BARRA DE COMANDO (Aba de digitação)
+local CommandFrame = Instance.new("Frame")
+CommandFrame.Name = "CommandFrame"
+CommandFrame.Size = UDim2.new(0, 0, 0, 40)
+CommandFrame.Position = UDim2.new(1, -20, 1, -30)
+CommandFrame.AnchorPoint = Vector2.new(1, 1)
+CommandFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+CommandFrame.BackgroundTransparency = 0.15
+CommandFrame.Visible = false
+CommandFrame.ZIndex = 998
+CommandFrame.Parent = ScreenGui
+
+local CommandCorner = Instance.new("UICorner")
+CommandCorner.CornerRadius = UDim.new(0, 8)
+CommandCorner.Parent = CommandFrame
+
+local CommandBox = Instance.new("TextBox")
+CommandBox.Size = UDim2.new(1, -10, 1, 0)
+CommandBox.Position = UDim2.new(0, 5, 0, 0)
+CommandBox.BackgroundTransparency = 1
+CommandBox.PlaceholderText = "Digite um comando..."
+CommandBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+CommandBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+CommandBox.TextSize = 14
+CommandBox.Font = Enum.Font.SourceSans
+CommandBox.TextXAlignment = Enum.TextXAlignment.Left
+CommandBox.Text = ""
+CommandBox.Parent = CommandFrame
+
+-- ============================================
+-- SISTEMA DE ARRASTAR (MOBILE & PC)
+-- ============================================
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    MainButton.Position = newPos
+    NameTag.Position = newPos
+end
+
+MainButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+MainButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
