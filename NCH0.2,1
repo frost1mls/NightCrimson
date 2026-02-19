@@ -265,3 +265,728 @@ local function closeCommandBar()
         AutoCloseTimer = nil
     end
 end
+-- ============================================
+-- EVENTOS DO GUI
+-- ============================================
+MainButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        DraggingButton = true
+        ButtonDragStart = input.Position
+        ButtonStartPos = MainButton.Position
+        
+        TweenService:Create(MainButton, TweenInfo.new(0.1), {
+            Size = UDim2.new(0, 32, 0, 32),
+            BackgroundColor3 = HOVER_COLOR
+        }):Play()
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                DraggingButton = false
+                TweenService:Create(MainButton, TweenInfo.new(0.1), {
+                    Size = UDim2.new(0, 35, 0, 35),
+                    BackgroundColor3 = MAIN_COLOR
+                }):Play()
+            end
+        end)
+    end
+end)
+
+MainButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and DraggingButton then
+        local delta = input.Position - ButtonDragStart
+        MainButton.Position = UDim2.new(
+            ButtonStartPos.X.Scale, 
+            ButtonStartPos.X.Offset + delta.X,
+            ButtonStartPos.Y.Scale, 
+            ButtonStartPos.Y.Offset + delta.Y
+        )
+        
+        NameTag.Position = MainButton.Position
+    end
+end)
+
+MainButton.MouseButton1Click:Connect(function()
+    if not DraggingButton then
+        if CommandOpen then
+            closeCommandBar()
+        else
+            openCommandBar()
+        end
+    end
+end)
+
+MainButton.MouseEnter:Connect(function()
+    showNameTag()
+    TweenService:Create(MainButton, TweenInfo.new(0.2), {
+        BackgroundColor3 = HOVER_COLOR,
+        Size = UDim2.new(0, 38, 0, 38)
+    }):Play()
+end)
+
+MainButton.MouseLeave:Connect(function()
+    hideNameTag()
+    TweenService:Create(MainButton, TweenInfo.new(0.2), {
+        BackgroundColor3 = MAIN_COLOR,
+        Size = UDim2.new(0, 35, 0, 35)
+    }):Play()
+end)
+
+NameTag.MouseLeave:Connect(function()
+    if not MainButton:IsMouseOver() then
+        hideNameTag()
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed then
+        if input.KeyCode == Enum.KeyCode.RightControl or input.KeyCode == Enum.KeyCode.F3 then
+            if CommandOpen then
+                closeCommandBar()
+            else
+                openCommandBar()
+            end
+        elseif input.KeyCode == Enum.KeyCode.Escape and CommandOpen then
+            closeCommandBar()
+        end
+    end
+end)
+
+CommandBox.FocusLost:Connect(function()
+    task.wait(2)
+    if CommandBox.Text == "" and CommandOpen then
+        closeCommandBar()
+    end
+end)
+
+-- ============================================
+-- FUNÇÕES AUXILIARES
+-- ============================================
+local function getRoot(char)
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function findPlayerByName(name)
+    if not name or name == "" then return nil end
+    
+    name = string.lower(name:gsub("%s+$", ""))
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Player then
+            if string.lower(player.DisplayName) == name or
+               string.lower(player.Name) == name then
+                return player
+            end
+            
+            if string.find(string.lower(player.DisplayName), name) or
+               string.find(string.lower(player.Name), name) then
+                return player
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- ============================================
+-- SISTEMA VIEW
+-- ============================================
+local function startViewing(player)
+    if not player or player == Player then return false end
+    
+    originalCameraType = Workspace.CurrentCamera.CameraType
+    originalCameraSubject = Workspace.CurrentCamera.CameraSubject
+    
+    Workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+    isViewing = true
+    targetPlayer = player
+    
+    CommandBox.PlaceholderText = "Viewing: " .. player.DisplayName
+    
+    return true
+end
+
+local function stopViewing()
+    if not isViewing then return end
+    
+    Workspace.CurrentCamera.CameraType = originalCameraType or Enum.CameraType.Custom
+    Workspace.CurrentCamera.CameraSubject = originalCameraSubject or Player.Character and Player.Character:FindFirstChild("Humanoid")
+    
+    isViewing = false
+    targetPlayer = nil
+    
+    CommandBox.PlaceholderText = "View disabled"
+end
+
+local function updateCamera()
+    if not isViewing or not targetPlayer then return end
+    
+    local targetCharacter = targetPlayer.Character
+    if not targetCharacter then
+        stopViewing()
+        return
+    end
+    
+    local humanoidRootPart = getRoot(targetCharacter)
+    if not humanoidRootPart then
+        stopViewing()
+        return
+    end
+    
+    local lookVector = humanoidRootPart.CFrame.LookVector
+    local upVector = Vector3.new(0, 1, 0)
+    
+    local offsetPosition = humanoidRootPart.Position - (lookVector * CONFIG.VIEW_DISTANCE) + (upVector * CONFIG.VIEW_HEIGHT)
+    local lookAtPosition = humanoidRootPart.Position + (upVector * 2)
+    
+    local currentCFrame = Workspace.CurrentCamera.CFrame
+    local targetCFrame = CFrame.lookAt(offsetPosition, lookAtPosition)
+    
+    Workspace.CurrentCamera.CFrame = currentCFrame:Lerp(targetCFrame, CONFIG.SMOOTHNESS)
+end
+
+-- ============================================
+-- SISTEMA GOTO
+-- ============================================
+local function teleportToPlayer(player)
+    if not player or player == Player then return false end
+    
+    local targetCharacter = player.Character
+    if not targetCharacter then return false end
+    
+    local targetRoot = getRoot(targetCharacter)
+    local myRoot = getRoot(Player.Character)
+    
+    if not targetRoot or not myRoot then return false end
+    
+    local lookVector = targetRoot.CFrame.LookVector
+    local teleportPosition = targetRoot.Position - (lookVector * 4) + Vector3.new(0, CONFIG.TELEPORT_HEIGHT, 0)
+    
+    myRoot.CFrame = CFrame.new(teleportPosition)
+    
+    CommandBox.PlaceholderText = "Teleported to " .. player.DisplayName
+    
+    return true
+end
+
+-- ============================================
+-- SISTEMA FLING
+-- ============================================
+local function startFling()
+    if isFlinging then return false end
+    
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local myHumanoidRootPart = getRoot(myCharacter)
+    if not myHumanoidRootPart then return false end
+    
+    isFlinging = true
+    
+    flingGyro = Instance.new("BodyGyro")
+    flingGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    flingGyro.P = 100000
+    flingGyro.D = 1000
+    flingGyro.CFrame = myHumanoidRootPart.CFrame
+    flingGyro.Parent = myHumanoidRootPart
+    
+    CommandBox.PlaceholderText = "Fling activated"
+    
+    spawn(function()
+        while isFlinging and flingGyro and flingGyro.Parent do
+            flingGyro.CFrame = flingGyro.CFrame * CFrame.Angles(0, math.rad(CONFIG.FLING_SPEED), 0)
+            RunService.RenderStepped:Wait()
+        end
+    end)
+    
+    return true
+end
+
+local function stopFling()
+    if not isFlinging then return end
+    
+    isFlinging = false
+    
+    if flingGyro then
+        flingGyro:Destroy()
+        flingGyro = nil
+    end
+    
+    CommandBox.PlaceholderText = "Fling disabled"
+end
+
+-- ============================================
+-- SISTEMA FLY (ORIGINAL DO RYUZEN)
+-- ============================================
+local function startFly(speed)
+    if isFlying then return false end
+    
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local torso = getRoot(myCharacter)
+    if not torso then return false end
+    
+    isFlying = true
+    
+    if speed then
+        flySpeed = math.clamp(tonumber(speed) or 50, 1, 1000)
+    end
+    
+    local hum = myCharacter:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.PlatformStand = true
+    end
+    
+    local bg = Instance.new("BodyGyro", torso)
+    bg.P = 500
+    bg.D = 50
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    
+    local bv = Instance.new("BodyVelocity", torso)
+    bv.velocity = Vector3.new(0, 0, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    
+    local lastCameraCF = workspace.CurrentCamera.CFrame
+    
+    spawn(function()
+        repeat
+            RunService.RenderStepped:Wait()
+            
+            if not isFlying or not torso or not torso.Parent then break end
+            
+            if hum then
+                hum.PlatformStand = true
+            end
+            
+            local move = Vector3.new(0, 0, 0)
+            
+            if flyJoystickDir.Magnitude > 0 then
+                local camera = workspace.CurrentCamera
+                move = move + (camera.CFrame.LookVector * flyJoystickDir.Y * flySpeed)
+                move = move + (camera.CFrame.RightVector * flyJoystickDir.X * flySpeed)
+            end
+            
+            move = move + Vector3.new(0, flyAltitude * flySpeed, 0)
+            
+            bv.velocity = move
+            
+            local currentCameraCF = workspace.CurrentCamera.CFrame
+            
+            if (currentCameraCF.Position - lastCameraCF.Position).Magnitude > 0.01 or
+               currentCameraCF.LookVector:Dot(lastCameraCF.LookVector) < 0.999 then
+                
+                bg.cframe = currentCameraCF
+                lastCameraCF = currentCameraCF
+            end
+            
+        until not isFlying
+        
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        
+        if myCharacter and myCharacter:FindFirstChildOfClass("Humanoid") then
+            myCharacter:FindFirstChildOfClass("Humanoid").PlatformStand = false
+        end
+        
+        flyJoystickDir = Vector2.new(0, 0)
+        flyAltitude = 0
+    end)
+    
+    CommandBox.PlaceholderText = "Fly activated - Speed: " .. flySpeed
+    
+    return true
+end
+
+local function stopFly()
+    if not isFlying then return end
+    
+    isFlying = false
+    
+    local myCharacter = Player.Character
+    if myCharacter then
+        local hum = myCharacter:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+        end
+        
+        local torso = getRoot(myCharacter)
+        if torso then
+            for _, v in pairs(torso:GetChildren()) do
+                if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then
+                    v:Destroy()
+                end
+            end
+        end
+    end
+    
+    flyJoystickDir = Vector2.new(0, 0)
+    flyAltitude = 0
+    
+    CommandBox.PlaceholderText = "Fly disabled"
+end
+-- ============================================
+-- SISTEMA NOCLIP
+-- ============================================
+local function startNoclip()
+    if isNoclipping then return false end
+    
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    isNoclipping = true
+    
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not isNoclipping or not Player.Character then
+            if noclipConnection then
+                noclipConnection:Disconnect()
+                noclipConnection = nil
+            end
+            return
+        end
+        
+        for _, part in ipairs(Player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+    
+    CommandBox.PlaceholderText = "Noclip activated"
+    
+    return true
+end
+
+local function stopNoclip()
+    if not isNoclipping then return end
+    
+    isNoclipping = false
+    
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    
+    local myCharacter = Player.Character
+    if myCharacter then
+        for _, part in ipairs(myCharacter:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+    
+    CommandBox.PlaceholderText = "Noclip disabled"
+end
+
+-- ============================================
+-- SISTEMA SPEED
+-- ============================================
+local function setSpeed(value)
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local humanoid = myCharacter:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    
+    if originalWalkSpeed == 16 then
+        originalWalkSpeed = humanoid.WalkSpeed
+    end
+    
+    local speed = tonumber(value)
+    if not speed or speed < 0 or speed > 1000 then
+        return false
+    end
+    
+    humanoid.WalkSpeed = speed
+    
+    CommandBox.PlaceholderText = "Speed: " .. speed
+    
+    return true
+end
+
+local function resetSpeed()
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local humanoid = myCharacter:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    
+    humanoid.WalkSpeed = originalWalkSpeed
+    
+    CommandBox.PlaceholderText = "Speed reset: " .. originalWalkSpeed
+    
+    return true
+end
+
+-- ============================================
+-- SISTEMA JUMP
+-- ============================================
+local function setJump(power)
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local humanoid = myCharacter:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    
+    if originalJumpPower == 50 then
+        originalJumpPower = humanoid.JumpPower
+    end
+    
+    local jump = tonumber(power)
+    if not jump or jump < 1 or jump > 1000 then
+        return false
+    end
+    
+    humanoid.JumpPower = jump
+    
+    CommandBox.PlaceholderText = "Jump: " .. jump
+    
+    return true
+end
+
+local function resetJump()
+    local myCharacter = Player.Character
+    if not myCharacter then return false end
+    
+    local humanoid = myCharacter:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    
+    humanoid.JumpPower = originalJumpPower
+    
+    CommandBox.PlaceholderText = "Jump reset: " .. originalJumpPower
+    
+    return true
+end
+
+-- ============================================
+-- SISTEMA REJOIN
+-- ============================================
+local function rejoinServer()
+    local placeId = game.PlaceId
+    
+    CommandBox.PlaceholderText = "Restarting in 3s..."
+    
+    task.delay(3, function()
+        TeleportService:Teleport(placeId, Player)
+    end)
+    
+    return true
+end
+
+-- ============================================
+-- SISTEMA SERVERHOP
+-- ============================================
+local function serverHop()
+    local placeId = game.PlaceId
+    
+    CommandBox.PlaceholderText = "Serverhopping..."
+    
+    task.delay(2, function()
+        TeleportService:Teleport(placeId, Player)
+    end)
+    
+    return true
+end
+
+-- ============================================
+-- CONTROLES FLY
+-- ============================================
+UserInputService.InputBegan:Connect(function(input)
+    if not isFlying then return end
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        flyJoystickDir = Vector2.new(flyJoystickDir.X, 1)
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyJoystickDir = Vector2.new(flyJoystickDir.X, -1)
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyJoystickDir = Vector2.new(-1, flyJoystickDir.Y)
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyJoystickDir = Vector2.new(1, flyJoystickDir.Y)
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        flyAltitude = 1
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then
+        flyAltitude = -1
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if not isFlying then return end
+    
+    if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.S then
+        flyJoystickDir = Vector2.new(flyJoystickDir.X, 0)
+    elseif input.KeyCode == Enum.KeyCode.A or input.KeyCode == Enum.KeyCode.D then
+        flyJoystickDir = Vector2.new(0, flyJoystickDir.Y)
+    elseif input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.LeftShift then
+        flyAltitude = 0
+    end
+end)
+
+-- ============================================
+-- SISTEMA DE COMANDOS (SEM ;)
+-- ============================================
+local function executeCommand(input)
+    if not input or input == "" then 
+        CommandBox.PlaceholderText = "Command not found"
+        task.delay(1.5, function()
+            CommandBox.PlaceholderText = "Type commands here..."
+        end)
+        return 
+    end
+    
+    local command = string.lower(input)
+    
+    if string.sub(command, 1, 5) == "view " then
+        local playerName = string.sub(input, 6)
+        local target = findPlayerByName(playerName)
+        
+        if target then
+            startViewing(target)
+            CommandBox.Text = ""
+        else
+            CommandBox.Text = ""
+            CommandBox.PlaceholderText = "Player not found"
+        end
+        
+    elseif command == "unview" then
+        stopViewing()
+        CommandBox.Text = ""
+        
+    elseif string.sub(command, 1, 5) == "goto " then
+        local playerName = string.sub(input, 6)
+        local target = findPlayerByName(playerName)
+        
+        if target then
+            teleportToPlayer(target)
+            CommandBox.Text = ""
+        else
+            CommandBox.Text = ""
+            CommandBox.PlaceholderText = "Player not found"
+        end
+        
+    elseif command == "fling" then
+        startFling()
+        CommandBox.Text = ""
+        
+    elseif command == "unfling" then
+        stopFling()
+        CommandBox.Text = ""
+        
+    elseif string.sub(command, 1, 4) == "fly " then
+        local speedValue = string.sub(input, 5)
+        startFly(speedValue)
+        CommandBox.Text = ""
+        
+    elseif command == "fly" then
+        startFly()
+        CommandBox.Text = ""
+        
+    elseif command == "unfly" then
+        stopFly()
+        CommandBox.Text = ""
+        
+    elseif command == "noclip" then
+        startNoclip()
+        CommandBox.Text = ""
+        
+    elseif command == "unnoclip" then
+        stopNoclip()
+        CommandBox.Text = ""
+        
+    elseif string.sub(command, 1, 6) == "speed " then
+        local speedValue = string.sub(input, 7)
+        if setSpeed(speedValue) then
+            CommandBox.Text = ""
+        else
+            CommandBox.Text = ""
+            CommandBox.PlaceholderText = "Invalid speed (0-1000)"
+        end
+        
+    elseif command == "unspeed" then
+        resetSpeed()
+        CommandBox.Text = ""
+        
+    elseif string.sub(command, 1, 5) == "jump " then
+        local jumpValue = string.sub(input, 6)
+        if setJump(jumpValue) then
+            CommandBox.Text = ""
+        else
+            CommandBox.Text = ""
+            CommandBox.PlaceholderText = "Invalid jump (1-1000)"
+        end
+        
+    elseif command == "unjump" then
+        resetJump()
+        CommandBox.Text = ""
+        
+    elseif command == "rejoin" or command == "rj" then
+        rejoinServer()
+        CommandBox.Text = ""
+        
+    elseif command == "serverhop" or command == "sh" then
+        serverHop()
+        CommandBox.Text = ""
+        
+    else
+        CommandBox.Text = ""
+        CommandBox.PlaceholderText = "Command not found"
+    end
+    
+    if command ~= "rejoin" and command ~= "rj" and command ~= "serverhop" and command ~= "sh" then
+        task.delay(1.5, function()
+            if CommandBox then
+                CommandBox.PlaceholderText = "Type commands here..."
+            end
+        end)
+    end
+end
+
+-- ============================================
+-- EVENTOS FINAIS
+-- ============================================
+CommandBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local text = CommandBox.Text
+        if text ~= "" then
+            executeCommand(text)
+        end
+    end
+end)
+
+CommandBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if #CommandBox.Text > 0 and CommandBox.Text:sub(-1) == "\n" then
+        CommandBox.Text = CommandBox.Text:sub(1, -2)
+        executeCommand(CommandBox.Text)
+    end
+end)
+
+RunService.RenderStepped:Connect(updateCamera)
+
+Player.CharacterAdded:Connect(function(newCharacter)
+    stopFly()
+    stopFling()
+    stopNoclip()
+    
+    if isFlying then
+        flyJoystickDir = Vector2.new(0, 0)
+        flyAltitude = 0
+    end
+    
+    task.wait(0.5)
+    local humanoid = newCharacter:FindFirstChild("Humanoid")
+    if humanoid then
+        if originalWalkSpeed == 16 then
+            originalWalkSpeed = humanoid.WalkSpeed
+        end
+        if originalJumpPower == 50 then
+            originalJumpPower = humanoid.JumpPower
+        end
+    end
+end)
+
+-- ============================================
+-- INICIALIZAÇÃO
+-- ============================================
+task.wait(1)
+print("🌑 Night Crimson Hub v2.0 loaded!")
+print("Click NC button or press RightCtrl/F3")
+print("Auto-closes after 5 seconds of inactivity")
