@@ -1,0 +1,730 @@
+-- ========== Veloria Hub - Versão PROFISSIONAL CORRIGIDA (LINHA 132) ==========
+local HttpService = game:GetService("HttpService")
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local players = game:GetService("Players")
+local localPlayer = players.LocalPlayer
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local virtualUser = game:GetService("VirtualUser")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "NCHUB"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = true
+
+-- [FUNÇÃO DRAG GLOBAL]
+local function MakeDraggable(obj, dragObj)
+    local dragging, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true 
+            dragStart = input.Position 
+            startPos = dragObj.Position
+        end
+    end)
+    userInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            dragObj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    obj.InputEnded:Connect(function() dragging = false end)
+end
+
+-- ========== SISTEMA ANTI AFK ==========
+local antiAfkAtivo = false
+local antiAfkConnection
+
+local function ativarAntiAfk()
+    if antiAfkAtivo then return end
+    antiAfkAtivo = true
+    
+    local function clickButton()
+        pcall(function()
+            virtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            virtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end)
+    end
+    
+    local function moveCharacter()
+        pcall(function()
+            local character = localPlayer.Character
+            if character and character:FindFirstChild("Humanoid") then
+                local humanoid = character.Humanoid
+                humanoid:Move(Vector3.new(0.1, 0, 0), false)
+                task.wait(0.1)
+                humanoid:Move(Vector3.new(-0.1, 0, 0), false)
+            end
+        end)
+    end
+    
+    local function fireRemote()
+        pcall(function()
+            for _, remote in pairs(replicatedStorage:GetDescendants()) do
+                if remote:IsA("RemoteEvent") and remote.Name:lower():find("afk") then
+                    remote:FireServer()
+                end
+            end
+        end)
+    end
+    
+    antiAfkConnection = runService.Heartbeat:Connect(function()
+        clickButton()
+        moveCharacter()
+        fireRemote()
+        task.wait(30)
+    end)
+end
+
+local function desativarAntiAfk()
+    if antiAfkConnection then
+        antiAfkConnection:Disconnect()
+        antiAfkConnection = nil
+    end
+    antiAfkAtivo = false
+end
+
+-- ========== TELA DE DESCANSO PROFISSIONAL ==========
+local telaDescanso = Instance.new("Frame")
+telaDescanso.Name = "TelaDescanso"
+telaDescanso.Size = UDim2.new(1, 0, 1, 0)
+telaDescanso.Position = UDim2.new(0, 0, 0, 0)
+telaDescanso.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+telaDescanso.BackgroundTransparency = 0.95  -- 95% transparente
+telaDescanso.Visible = false
+telaDescanso.Parent = screenGui
+telaDescanso.ZIndex = 1000
+telaDescanso.BorderSizePixel = 0
+
+-- Container central para alinhamento perfeito
+local centralContainer = Instance.new("Frame")
+centralContainer.Size = UDim2.new(0, 400, 0, 100)
+centralContainer.Position = UDim2.new(0.5, -200, 0.5, -50)
+centralContainer.BackgroundTransparency = 1
+centralContainer.Parent = telaDescanso
+centralContainer.ZIndex = 1001
+
+-- Texto principal (Tela De Descanso)
+local textoPrincipal = Instance.new("TextLabel")
+textoPrincipal.Size = UDim2.new(1, 0, 0, 40)
+textoPrincipal.Position = UDim2.new(0, 0, 0, 0)
+textoPrincipal.BackgroundTransparency = 1
+textoPrincipal.Text = "Tela De Descanso"
+textoPrincipal.TextColor3 = Color3.fromRGB(255, 255, 255)
+textoPrincipal.TextSize = 24
+textoPrincipal.Font = Enum.Font.Gotham
+textoPrincipal.TextXAlignment = Enum.TextXAlignment.Center
+textoPrincipal.TextYAlignment = Enum.TextYAlignment.Center
+textoPrincipal.Parent = centralContainer
+textoPrincipal.ZIndex = 1002
+
+-- Texto secundário (Modo Anti afk ativo !)
+local textoSecundario = Instance.new("TextLabel")
+textoSecundario.Size = UDim2.new(1, 0, 0, 30)
+textoSecundario.Position = UDim2.new(0, 0, 0, 40)
+textoSecundario.BackgroundTransparency = 1
+textoSecundario.Text = "Modo Anti afk ativo !"
+textoSecundario.TextColor3 = Color3.fromRGB(200, 200, 200)
+textoSecundario.TextSize = 16
+textoSecundario.Font = Enum.Font.GothamLight
+textoSecundario.TextXAlignment = Enum.TextXAlignment.Center
+textoSecundario.TextYAlignment = Enum.TextYAlignment.Center
+textoSecundario.Parent = centralContainer
+textoSecundario.ZIndex = 1002
+
+-- Linha decorativa sutil
+local linhaDecorativa = Instance.new("Frame")
+linhaDecorativa.Size = UDim2.new(0.5, 0, 0, 1)
+linhaDecorativa.Position = UDim2.new(0.25, 0, 0, 75)
+linhaDecorativa.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+linhaDecorativa.BackgroundTransparency = 0.7
+linhaDecorativa.BorderSizePixel = 0
+linhaDecorativa.Parent = centralContainer
+linhaDecorativa.ZIndex = 1001
+
+-- Timer de inatividade (15 SEGUNDOS PARA TESTE)
+local tempoInativo = 0
+local tempoLimite = 15
+local descansoAtivo = false
+local modoDescansoHabilitado = true
+local timerConnection
+
+local function ativarDescanso()
+    if not modoDescansoHabilitado or descansoAtivo then return end
+    descansoAtivo = true
+    telaDescanso.Visible = true
+    ativarAntiAfk()
+end
+
+local function desativarDescanso()
+    if not descansoAtivo then return end
+    descansoAtivo = false
+    telaDescanso.Visible = false
+    desativarAntiAfk()
+    tempoInativo = 0
+end
+
+timerConnection = runService.Heartbeat:Connect(function(deltaTime)
+    if not modoDescansoHabilitado then return end
+    
+    if not descansoAtivo then
+        tempoInativo = tempoInativo + deltaTime
+        
+        if tempoInativo >= tempoLimite then
+            ativarDescanso()
+        end
+    end
+end)
+
+local function onUserInput()
+    if descansoAtivo then
+        desativarDescanso()
+    else
+        tempoInativo = 0
+    end
+end
+
+userInputService.InputBegan:Connect(onUserInput)
+userInputService.InputChanged:Connect(onUserInput)
+localPlayer.Idled:Connect(onUserInput)
+
+-- [INTRODUÇÃO]
+local loadingFrame = Instance.new("Frame")
+loadingFrame.Size = UDim2.new(0, 150, 0, 70)
+loadingFrame.Position = UDim2.new(0.5, -75, 0.5, -35)
+loadingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+loadingFrame.Parent = screenGui
+loadingFrame.ZIndex = 10
+Instance.new("UICorner", loadingFrame).CornerRadius = UDim.new(0, 12)
+
+local loadingText = Instance.new("TextLabel")
+loadingText.Size = UDim2.new(1, 0, 1, 0)
+loadingText.Text = "Veloria Hub"
+loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingText.Font = Enum.Font.GothamBold
+loadingText.TextSize = 28
+loadingText.BackgroundTransparency = 1
+loadingText.Parent = loadingFrame
+
+task.wait(2)
+loadingFrame:TweenPosition(UDim2.new(0.5, -75, 1.5, 0), "Out", "Quad", 0.5, true)
+task.wait(0.5)
+loadingFrame:Destroy()
+
+-- GUI Principal
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 420, 0, 340)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Visible = false 
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.Parent = mainFrame
+
+-- GRADIENTE PRINCIPAL
+local gradientePrincipal = Instance.new("UIGradient")
+gradientePrincipal.Parent = mainFrame
+gradientePrincipal.Rotation = 90
+gradientePrincipal.Offset = Vector2.new(0, 0.35)
+
+-- TOP BAR
+local topBar = Instance.new("Frame")
+topBar.Name = "TopBar"
+topBar.Size = UDim2.new(1, 0, 0, 45)
+topBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+topBar.BorderSizePixel = 0
+topBar.Parent = mainFrame
+topBar.ZIndex = 10
+
+local topBarCorner = Instance.new("UICorner")
+topBarCorner.CornerRadius = UDim.new(0, 16)
+topBarCorner.Parent = topBar
+
+local topBarGradient = Instance.new("UIGradient")
+topBarGradient.Parent = topBar
+topBarGradient.Rotation = 90
+topBarGradient.Offset = Vector2.new(0, 0.35)
+
+-- LOGO E NOME
+local hubLogo = Instance.new("ImageLabel")
+hubLogo.Size = UDim2.new(0, 36, 0, 36)
+hubLogo.Position = UDim2.new(0, 8, 0.5, -18)
+hubLogo.BackgroundTransparency = 1
+hubLogo.Image = "rbxassetid://137273924200922"
+hubLogo.Parent = topBar
+Instance.new("UICorner", hubLogo).CornerRadius = UDim.new(1, 0)
+
+local hubName = Instance.new("TextLabel")
+hubName.Size = UDim2.new(0, 120, 1, 0)
+hubName.Position = UDim2.new(0, 52, 0, 0)
+hubName.BackgroundTransparency = 1
+hubName.Text = "Veloria Hub"
+hubName.TextColor3 = Color3.fromRGB(255, 255, 255)
+hubName.Font = Enum.Font.GothamBold
+hubName.TextSize = 18
+hubName.TextXAlignment = Enum.TextXAlignment.Left
+hubName.Parent = topBar
+
+-- BOTÕES TOPBAR
+local buttonContainer = Instance.new("Frame")
+buttonContainer.Size = UDim2.new(0, 120, 1, 0)
+buttonContainer.Position = UDim2.new(1, -130, 0, 0)
+buttonContainer.BackgroundTransparency = 1
+buttonContainer.Parent = topBar
+
+local function CreateTopBtn(pos, img, parent)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 30, 1, 0)
+    btn.Position = pos
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = parent
+    local icon = Instance.new("ImageLabel")
+    icon.Size = UDim2.new(0, 22, 0, 22)
+    icon.Position = UDim2.new(0.5, -11, 0.5, -11)
+    icon.BackgroundTransparency = 1
+    icon.Image = "rbxassetid://" .. img
+    icon.ScaleType = Enum.ScaleType.Fit
+    icon.Parent = btn
+    return btn, icon
+end
+
+local configBtn, configIcon = CreateTopBtn(UDim2.new(0, 0, 0, 0), "90478803942823", buttonContainer)
+local minMaxBtn, minMaxIcon = CreateTopBtn(UDim2.new(0, 30, 0, 0), "80618521858488", buttonContainer)
+local closeBtn, closeIcon = CreateTopBtn(UDim2.new(0, 60, 0, 0), "91221634288964", buttonContainer)
+local helpBtn, helpIcon = CreateTopBtn(UDim2.new(0, 90, 0, 0), "95556025403965", buttonContainer)
+
+-- CONTEÚDO
+local contentArea = Instance.new("ScrollingFrame")
+contentArea.Name = "ContentArea"
+contentArea.Size = UDim2.new(1, -20, 1, -60)
+contentArea.Position = UDim2.new(0, 10, 0, 55)
+contentArea.BackgroundTransparency = 1
+contentArea.BorderSizePixel = 0
+contentArea.ScrollBarThickness = 4
+contentArea.CanvasSize = UDim2.new(0, 0, 0, 280)
+contentArea.Parent = mainFrame
+contentArea.ZIndex = 5
+contentArea.ClipsDescendants = false
+
+local configArea = Instance.new("Frame")
+configArea.Name = "ConfigArea"
+configArea.Size = UDim2.new(1, 0, 1, 0)
+configArea.BackgroundTransparency = 1
+configArea.Visible = false
+configArea.Parent = contentArea
+configArea.ZIndex = 5
+
+-- ========== LOGICA DE CORES ==========
+local currentHue = 210
+local currentBrightness = 0
+local isLightMode = false
+
+local function Color3ToHEX(color)
+    local r, g, b = math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255)
+    return string.format("#%02X%02X%02X", r, g, b)
+end
+
+local function HEXToColor3(hex)
+    hex = hex:gsub("#", "")
+    if #hex == 6 then
+        return Color3.fromRGB(tonumber(hex:sub(1,2), 16), tonumber(hex:sub(3,4), 16), tonumber(hex:sub(5,6), 16))
+    end
+    return nil
+end
+
+local function AtualizarCores()
+    local corBase = Color3.fromHSV(currentHue/360, 1, currentBrightness)
+    
+    if isLightMode then
+        mainFrame.BackgroundColor3 = corBase:Lerp(Color3.fromRGB(255, 255, 255), 0.3)
+        topBar.BackgroundColor3 = mainFrame.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.05)
+        gradientePrincipal.Enabled = true
+        gradientePrincipal.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, mainFrame.BackgroundColor3),
+            ColorSequenceKeypoint.new(0.6, mainFrame.BackgroundColor3:Lerp(Color3.fromRGB(0,0,0), 0.5)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(30,30,30))
+        })
+        topBarGradient.Enabled = true
+        topBarGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, topBar.BackgroundColor3:Lerp(Color3.fromRGB(0,0,0), 0.5)),
+            ColorSequenceKeypoint.new(1, topBar.BackgroundColor3)
+        })
+    else
+        mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        topBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        gradientePrincipal.Enabled = false
+        topBarGradient.Enabled = false
+    end
+    
+    -- Verifica se o toggleBtn existe antes de usar
+    if _G.toggleBtn and _G.toggleBtn.Parent then 
+        _G.toggleBtn.BackgroundColor3 = mainFrame.BackgroundColor3
+    end
+    
+    if _G.hexTextBox and not _G.hexTextBox:IsFocused() then
+        _G.hexTextBox.Text = Color3ToHEX(corBase)
+    end
+end
+
+-- FUNÇÃO CRIAR SLIDER
+local function CriarSlider(configParent, titulo, yPos, getValor, setValor, min, max)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 60, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.Text = titulo
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = configParent
+    
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(0.75, 0, 0, 20)
+    sliderFrame.Position = UDim2.new(0.2, 0, 0, yPos)
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    sliderFrame.Parent = configParent
+    Instance.new("UICorner", sliderFrame).CornerRadius = UDim.new(1, 0)
+    
+    local sliderGradient = Instance.new("UIGradient")
+    if titulo == "Cor:" then
+        sliderGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.8, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 255))
+        })
+    else
+        sliderGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+        })
+    end
+    sliderGradient.Parent = sliderFrame
+    
+    local sliderButton = Instance.new("TextButton")
+    sliderButton.Size = UDim2.new(0, 20, 0, 30)
+    sliderButton.Position = UDim2.new((getValor() - min) / (max - min), -10, 0.5, -15)
+    sliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderButton.Text = ""
+    sliderButton.Parent = sliderFrame
+    Instance.new("UICorner", sliderButton).CornerRadius = UDim.new(1, 0)
+    Instance.new("UIStroke", sliderButton).Thickness = 2
+    
+    return sliderFrame, sliderButton
+end
+
+local corSliderFrame, corSliderButton = CriarSlider(configArea, "Cor:", 45, function() return currentHue end, function(v) currentHue = v end, 0, 360)
+local brilhoSliderFrame, brilhoSliderButton = CriarSlider(configArea, "Brilho:", 85, function() return currentBrightness end, function(v) currentBrightness = v end, 0, 1)
+
+-- HEX BOX
+local hexLabel = Instance.new("TextLabel")
+hexLabel.Size = UDim2.new(0, 60, 0, 20)
+hexLabel.Position = UDim2.new(0, 10, 0, 125)
+hexLabel.BackgroundTransparency = 1
+hexLabel.Text = "Hex:"
+hexLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+hexLabel.Font = Enum.Font.GothamBold
+hexLabel.TextSize = 12
+hexLabel.TextXAlignment = Enum.TextXAlignment.Left
+hexLabel.Parent = configArea
+
+local hexBox = Instance.new("Frame")
+hexBox.Size = UDim2.new(0.75, 0, 0, 25)
+hexBox.Position = UDim2.new(0.2, 0, 0, 122)
+hexBox.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+hexBox.Parent = configArea
+Instance.new("UICorner", hexBox).CornerRadius = UDim.new(0, 6)
+
+local hexTextBox = Instance.new("TextBox")
+hexTextBox.Size = UDim2.new(1, -10, 1, 0)
+hexTextBox.Position = UDim2.new(0, 5, 0, 0)
+hexTextBox.BackgroundTransparency = 1
+hexTextBox.Text = "#000000"
+hexTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+hexTextBox.Font = Enum.Font.GothamBold
+hexTextBox.TextSize = 14
+hexTextBox.TextXAlignment = Enum.TextXAlignment.Left
+hexTextBox.Parent = hexBox
+_G.hexTextBox = hexTextBox
+
+local function garantirHash()
+    local texto = hexTextBox.Text
+    if texto == "" or texto:sub(1,1) ~= "#" then
+        hexTextBox.Text = "#" .. texto:gsub("#", "")
+    end
+end
+
+hexTextBox.FocusLost:Connect(function(enter)
+    garantirHash()
+    if enter then
+        local cor = HEXToColor3(hexTextBox.Text)
+        if cor then
+            local h, s, v = cor:ToHSV()
+            currentHue, currentBrightness = h * 360, v
+            corSliderButton.Position = UDim2.new(h, -10, 0.5, -15)
+            brilhoSliderButton.Position = UDim2.new(v, -10, 0.5, -15)
+            AtualizarCores()
+        else
+            currentHue = 0
+            currentBrightness = 0
+            corSliderButton.Position = UDim2.new(0, -10, 0.5, -15)
+            brilhoSliderButton.Position = UDim2.new(0, -10, 0.5, -15)
+            AtualizarCores()
+        end
+    end
+end)
+
+hexTextBox.Focused:Connect(garantirHash)
+
+-- ========== TOGGLES ==========
+
+-- Variável global para o botão flutuante
+_G.toggleBtn = nil
+
+-- Toggle da bola flutuante
+local isRemovedToggle = false
+local function GerenciarBola()
+    if not isRemovedToggle then
+        if not _G.toggleBtn or not _G.toggleBtn.Parent then
+            local newBtn = Instance.new("ImageButton")
+            newBtn.Size = UDim2.new(0, 60, 0, 60)
+            newBtn.Position = UDim2.new(0, 15, 0.5, -30)
+            newBtn.BackgroundColor3 = mainFrame.BackgroundColor3
+            newBtn.Image = "rbxassetid://88635712482054"
+            newBtn.Parent = screenGui
+            Instance.new("UICorner", newBtn).CornerRadius = UDim.new(1, 0)
+            Instance.new("UIStroke", newBtn).Thickness = 2.5
+            newBtn.MouseButton1Click:Connect(function() mainFrame.Visible = not mainFrame.Visible end)
+            MakeDraggable(newBtn, newBtn)
+            _G.toggleBtn = newBtn
+        end
+    else
+        if _G.toggleBtn then
+            _G.toggleBtn:Destroy()
+            _G.toggleBtn = nil
+        end
+    end
+end
+
+local removeTextLabel = Instance.new("TextLabel")
+removeTextLabel.Size = UDim2.new(0, 120, 0, 20)
+removeTextLabel.Position = UDim2.new(0, 10, 0, 165)
+removeTextLabel.BackgroundTransparency = 1
+removeTextLabel.Text = "Remove Floating Button:"
+removeTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+removeTextLabel.Font = Enum.Font.GothamBold
+removeTextLabel.TextSize = 12
+removeTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+removeTextLabel.Parent = configArea
+
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(0.2, 0, 0, 18)
+toggleFrame.Position = UDim2.new(0.75, 0, 0, 166)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+toggleFrame.Parent = configArea
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(1, 0)
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.4, 0, 0.8, 0)
+toggleButton.Position = UDim2.new(0.55, 0, 0.1, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = ""
+toggleButton.Parent = toggleFrame
+Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
+
+local function toggleSwitch()
+    if not isRemovedToggle then
+        toggleButton:TweenPosition(UDim2.new(0.05, 0, 0.1, 0), "Out", "Quad", 0.2, true)
+        toggleFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        isRemovedToggle = true
+    else
+        toggleButton:TweenPosition(UDim2.new(0.55, 0, 0.1, 0), "Out", "Quad", 0.2, true)
+        toggleFrame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        isRemovedToggle = false
+    end
+    GerenciarBola()
+end
+toggleButton.MouseButton1Click:Connect(toggleSwitch)
+
+-- Toggle do modo descanso
+local descansoTextLabel = Instance.new("TextLabel")
+descansoTextLabel.Size = UDim2.new(0, 120, 0, 20)
+descansoTextLabel.Position = UDim2.new(0, 10, 0, 195)
+descansoTextLabel.BackgroundTransparency = 1
+descansoTextLabel.Text = "Disable Sleep Mode:"
+descansoTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+descansoTextLabel.Font = Enum.Font.GothamBold
+descansoTextLabel.TextSize = 12
+descansoTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+descansoTextLabel.Parent = configArea
+
+local descansoFrame = Instance.new("Frame")
+descansoFrame.Size = UDim2.new(0.2, 0, 0, 18)
+descansoFrame.Position = UDim2.new(0.75, 0, 0, 196)
+descansoFrame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+descansoFrame.Parent = configArea
+Instance.new("UICorner", descansoFrame).CornerRadius = UDim.new(1, 0)
+
+local descansoToggleButton = Instance.new("TextButton")
+descansoToggleButton.Size = UDim2.new(0.4, 0, 0.8, 0)
+descansoToggleButton.Position = UDim2.new(0.55, 0, 0.1, 0)
+descansoToggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+descansoToggleButton.Text = ""
+descansoToggleButton.Parent = descansoFrame
+Instance.new("UICorner", descansoToggleButton).CornerRadius = UDim.new(1, 0)
+
+local descansoHabilitado = true
+
+local function toggleModoDescanso()
+    descansoHabilitado = not descansoHabilitado
+    modoDescansoHabilitado = descansoHabilitado
+    
+    if descansoHabilitado then
+        descansoFrame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        descansoToggleButton:TweenPosition(UDim2.new(0.55, 0, 0.1, 0), "Out", "Quad", 0.2, true)
+    else
+        descansoFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        descansoToggleButton:TweenPosition(UDim2.new(0.05, 0, 0.1, 0), "Out", "Quad", 0.2, true)
+        
+        if descansoAtivo then
+            desativarDescanso()
+        end
+    end
+end
+
+descansoToggleButton.MouseButton1Click:Connect(toggleModoDescanso)
+
+-- TEMA DUAL
+local dualTextLabel = Instance.new("TextLabel")
+dualTextLabel.Size = UDim2.new(0, 100, 0, 20)
+dualTextLabel.Position = UDim2.new(0, 10, 0, 225)
+dualTextLabel.BackgroundTransparency = 1
+dualTextLabel.Text = "Theme Mode:"
+dualTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+dualTextLabel.Font = Enum.Font.GothamBold
+dualTextLabel.TextSize = 12
+dualTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+dualTextLabel.Parent = configArea
+
+local dualFrame = Instance.new("Frame")
+dualFrame.Size = UDim2.new(0.4, 0, 0, 25)
+dualFrame.Position = UDim2.new(0.55, 0, 0, 224)
+dualFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+dualFrame.Parent = configArea
+Instance.new("UICorner", dualFrame).CornerRadius = UDim.new(0, 6)
+
+local lightButton = Instance.new("TextButton")
+lightButton.Size = UDim2.new(0.5, -2, 1, 0)
+lightButton.Position = UDim2.new(0, 1, 0, 0)
+lightButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+lightButton.Text = "Cor"
+lightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+lightButton.Font = Enum.Font.GothamBold
+lightButton.TextSize = 12
+lightButton.Parent = dualFrame
+Instance.new("UICorner", lightButton).CornerRadius = UDim.new(0, 4)
+
+local systemButton = Instance.new("TextButton")
+systemButton.Size = UDim2.new(0.5, -2, 1, 0)
+systemButton.Position = UDim2.new(0.5, 1, 0, 0)
+systemButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+systemButton.Text = "Sistema"
+systemButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+systemButton.Font = Enum.Font.GothamBold
+systemButton.TextSize = 12
+systemButton.Parent = dualFrame
+Instance.new("UICorner", systemButton).CornerRadius = UDim.new(0, 4)
+
+lightButton.MouseButton1Click:Connect(function()
+    isLightMode = true
+    lightButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    systemButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    AtualizarCores()
+end)
+
+systemButton.MouseButton1Click:Connect(function()
+    isLightMode = false
+    lightButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    systemButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    AtualizarCores()
+end)
+
+-- LOGICA SLIDERS
+local function SetupSliderLogic(frame, button, isHue)
+    local dragging = false
+    button.MouseButton1Down:Connect(function() dragging = true end)
+    userInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+    userInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local mousePos = userInputService:GetMouseLocation()
+            local relativeX = math.clamp(mousePos.X - frame.AbsolutePosition.X, 0, frame.AbsoluteSize.X)
+            local percent = relativeX / frame.AbsoluteSize.X
+            button.Position = UDim2.new(percent, -10, 0.5, -15)
+            if isHue then currentHue = percent * 360 else currentBrightness = percent end
+            AtualizarCores()
+        end
+    end)
+end
+SetupSliderLogic(corSliderFrame, corSliderButton, true)
+SetupSliderLogic(brilhoSliderFrame, brilhoSliderButton, false)
+
+-- BOTÃO CONFIG
+configBtn.MouseButton1Click:Connect(function()
+    configArea.Visible = not configArea.Visible
+    configIcon.ImageColor3 = configArea.Visible and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 255, 255)
+end)
+
+-- BOTÃO MINIMIZAR
+local guiMinimizado = false
+local configEstavaAberta = false
+
+minMaxBtn.MouseButton1Click:Connect(function()
+    if guiMinimizado then
+        mainFrame.Size = UDim2.new(0, 420, 0, 340)
+        contentArea.Visible = true
+        minMaxIcon.Image = "rbxassetid://80618521858488"
+        
+        if configEstavaAberta then
+            configArea.Visible = true
+            configIcon.ImageColor3 = Color3.fromRGB(255, 255, 0)
+        end
+        
+        guiMinimizado = false
+    else
+        configEstavaAberta = configArea.Visible
+        configArea.Visible = false
+        configIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        
+        mainFrame.Size = UDim2.new(0, 420, 0, 45)
+        contentArea.Visible = false
+        minMaxIcon.Image = "rbxassetid://126704295481770"
+        
+        guiMinimizado = true
+    end
+end)
+
+-- FECHAR
+closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+-- INICIALIZAÇÃO
+GerenciarBola()
+MakeDraggable(topBar, mainFrame)
+mainFrame.Visible = true
+AtualizarCores()
+
+print("✅ Veloria Hub - Versão PROFISSIONAL CORRIGIDA (LINHA 132) carregada! ❤️")
+print("⏰ Timer de descanso: 15 SEGUNDOS (modo teste)")
